@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Communal Hoover Check-out & Log System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- QRCode.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printable-qr-section, #printable-qr-section * {
+                visibility: visible;
+            }
+            #printable-qr-section {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                margin: 0;
+                padding: 2rem;
+                box-shadow: none;
+                border: 2px dashed #000;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans flex flex-col justify-between antialiased">
+
+    <!-- Header / Navbar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-sky-500 text-white p-2 rounded-xl shadow-md">
+                    <i data-lucide="wind" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-slate-900 text-lg sm:text-xl leading-tight">Communal Hoover</h1>
+                    <p class="text-xs text-slate-500 font-medium">Residence Equipment Tracker</p>
+                </div>
+            </div>
+            <button onclick="scrollToQR()" class="no-print inline-flex items-center space-x-1 text-xs font-semibold bg-sky-50 text-sky-700 hover:bg-sky-100 px-3 py-2 rounded-lg transition-colors border border-sky-200">
+                <i data-lucide="qr-code" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Get QR Code</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-6 w-full space-y-6 flex-grow">
+
+        <!-- Status Banner Component -->
+        <div id="status-card" class="rounded-2xl p-5 border shadow-sm transition-all duration-300 bg-white">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="flex items-start space-x-4">
+                    <div id="status-icon-bg" class="p-3 rounded-full flex-shrink-0">
+                        <i id="status-icon" class="w-7 h-7"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Current Status</span>
+                            <span id="status-badge" class="px-2.5 py-0.5 text-xs font-bold rounded-full"></span>
+                        </div>
+                        <h2 id="status-title" class="text-xl font-bold text-slate-900 mt-1">Checking...</h2>
+                        <p id="status-subtext" class="text-sm text-slate-600 mt-0.5"></p>
+                    </div>
+                </div>
+                <button id="quick-action-btn" onclick="quickFillForm()" class="no-print hidden sm:flex items-center justify-center font-medium text-sm px-4 py-2.5 rounded-xl shadow-sm border transition-all">
+                    <!-- Dynamic text -->
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Form Section -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-6">
+            <div class="border-b border-slate-100 pb-4 mb-5">
+                <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="clipboard-edit" class="w-5 h-5 text-sky-600"></i>
+                    Book In / Book Out Hoover
+                </h3>
+                <p class="text-xs text-slate-500 mt-0.5">Please update the log whenever borrowing or returning the vacuum cleaner.</p>
+            </div>
+
+            <form id="booking-form" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                <!-- Action Type Selector Toggle -->
+                <div class="grid grid-cols-2 gap-3 p-1 bg-slate-100 rounded-xl">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="action_type" value="BOOK_OUT" class="peer sr-only" checked onchange="toggleActionFields('BOOK_OUT')">
+                        <div class="py-2.5 text-center rounded-lg font-semibold text-sm text-slate-600 peer-checked:bg-white peer-checked:text-rose-600 peer-checked:shadow-sm transition-all flex items-center justify-center space-x-2">
+                            <i data-lucide="log-out" class="w-4 h-4"></i>
+                            <span>Book Out</span>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="action_type" value="BOOK_IN" class="peer sr-only" onchange="toggleActionFields('BOOK_IN')">
+                        <div class="py-2.5 text-center rounded-lg font-semibold text-sm text-slate-600 peer-checked:bg-white peer-checked:text-emerald-600 peer-checked:shadow-sm transition-all flex items-center justify-center space-x-2">
+                            <i data-lucide="log-in" class="w-4 h-4"></i>
+                            <span>Book In</span>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <!-- Person Name -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5" for="person_name">
+                            Full Name <span class="text-rose-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <i data-lucide="user" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+                            <input type="text" id="person_name" required placeholder="e.g. Alex Smith" class="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all">
+                        </div>
+                    </div>
+
+                    <!-- Room / Flat Number -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5" for="room_number">
+                            Flat / Room / Block <span class="text-rose-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <i data-lucide="home" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+                            <input type="text" id="room_number" required placeholder="e.g. Flat 3B, Room 12" class="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Date & Time Input (Defaults to Now) -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5" for="log_datetime">
+                        Date & Time
+                    </label>
+                    <div class="relative">
+                        <i data-lucide="clock" class="w-4 h-4 absolute left-3 top-3 text-slate-400"></i>
+                        <input type="datetime-local" id="log_datetime" required class="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all">
+                    </div>
+                </div>
+
+                <!-- Hoover Condition / Checklist -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5" for="notes">
+                        Notes & Condition Check
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                        <label class="inline-flex items-center space-x-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 cursor-pointer text-xs font-medium text-slate-700 hover:bg-slate-100">
+                            <input type="checkbox" id="check_emptied" class="rounded text-sky-600 focus:ring-sky-500 w-4 h-4">
+                            <span>Dust Bin / Bag Emptied</span>
+                        </label>
+                        <label class="inline-flex items-center space-x-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200 cursor-pointer text-xs font-medium text-slate-700 hover:bg-slate-100">
+                            <input type="checkbox" id="check_cable" class="rounded text-sky-600 focus:ring-sky-500 w-4 h-4" checked>
+                            <span>Cable Neat & Undamaged</span>
+                        </label>
+                    </div>
+                    <textarea id="notes" rows="2" placeholder="Optional comments (e.g. suction issue, missing attachment, returning early)..." class="w-full p-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all resize-none"></textarea>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" id="submit-btn" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center space-x-2">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                    <span id="submit-text">Confirm Book Out</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Activity History Log Table -->
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="history" class="w-5 h-5 text-sky-600"></i>
+                        Activity Log
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-0.5">Recent sign-out and sign-in records</p>
+                </div>
+                <button onclick="clearHistory()" class="no-print text-xs text-slate-400 hover:text-rose-600 font-medium px-2 py-1 rounded hover:bg-rose-50 transition-colors flex items-center space-x-1">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    <span>Clear Logs</span>
+                </button>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs sm:text-sm">
+                    <thead class="bg-slate-50 text-slate-500 font-semibold uppercase tracking-wider border-b border-slate-100">
+                        <tr>
+                            <th class="py-3 px-4">Action</th>
+                            <th class="py-3 px-4">Resident</th>
+                            <th class="py-3 px-4">Location</th>
+                            <th class="py-3 px-4">Date & Time</th>
+                            <th class="py-3 px-4">Condition / Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-tbody" class="divide-y divide-slate-100">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="empty-log-msg" class="p-8 text-center text-slate-400 text-sm hidden">
+                <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                No check-in or check-out history recorded yet.
+            </div>
+        </div>
+
+        <!-- QR Code Printable Sign Sheet Section -->
+        <div id="qr-section" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 scroll-mt-6">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-100 pb-4 mb-4 gap-3">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="qr-code" class="w-5 h-5 text-sky-600"></i>
+                        Printable QR Code Sign Sheet
+                    </h3>
+                    <p class="text-xs text-slate-500">Print and attach this sign near the hoover station or directly onto the vacuum cleaner.</p>
+                </div>
+                <button onclick="window.print()" class="no-print bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs px-4 py-2.5 rounded-xl shadow transition-colors flex items-center space-x-2 self-stretch sm:self-auto justify-center">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span>Print QR Sign Sheet</span>
+                </button>
+            </div>
+
+            <!-- Card layout formatted for printing -->
+            <div id="printable-qr-section" class="bg-gradient-to-br from-slate-50 to-sky-50 rounded-2xl border-2 border-sky-200 p-6 sm:p-8 text-center max-w-lg mx-auto">
+                <div class="inline-flex items-center justify-center bg-sky-600 text-white p-3 rounded-2xl shadow-md mb-3">
+                    <i data-lucide="wind" class="w-8 h-8"></i>
+                </div>
+                <h2 class="text-2xl font-black text-slate-900 uppercase tracking-tight">COMMUNAL HOOVER</h2>
+                <p class="text-sm font-semibold text-sky-700 mb-6">Scan QR Code to Book In or Out</p>
+
+                <div class="bg-white p-4 rounded-2xl shadow-md inline-block mb-4 border border-slate-100">
+                    <div id="qrcode-container" class="flex justify-center items-center"></div>
+                </div>
+
+                <div class="space-y-2 text-left bg-white/80 backdrop-blur p-4 rounded-xl border border-sky-100 text-xs text-slate-700">
+                    <div class="flex items-start space-x-2">
+                        <span class="bg-sky-600 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">1</span>
+                        <p>Scan this QR code with your mobile camera.</p>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <span class="bg-sky-600 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">2</span>
+                        <p>Fill in your <strong>Name</strong> and <strong>Flat/Room</strong> number.</p>
+                    </div>
+                    <div class="flex items-start space-x-2">
+                        <span class="bg-sky-600 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">3</span>
+                        <p>Select <strong>Book Out</strong> when borrowing or <strong>Book In</strong> when returning.</p>
+                    </div>
+                    <div class="flex items-start space-x-2 text-amber-700 font-medium pt-1">
+                        <i data-lucide="alert-triangle" class="w-3.5 h-3.5 flex-shrink-0 mt-0.5"></i>
+                        <p>Please empty the dust bin/bag before returning for the next resident!</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-sky-200/60 text-[10px] text-slate-400 font-mono">
+                    URL: <span id="current-url-display" class="break-all"></span>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="no-print bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400">
+        <p>Communal Facilities Management System &bull; Simple & Persistent Tracking</p>
+    </footer>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 transition-all transform translate-y-20 opacity-0 z-50">
+        <i data-lucide="check-circle" class="w-5 h-5 text-emerald-400" id="toast-icon"></i>
+        <span id="toast-message" class="text-sm font-medium">Action completed successfully</span>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        const STORAGE_KEY = 'communal_hoover_logs_v1';
+        let logs = [];
+
+        // Initialize App on DOM Load
+        window.onload = function() {
+            lucide.createIcons();
+            setDefaultDateTime();
+            loadLogs();
+            updateStatusUI();
+            renderLogsTable();
+            generateQRCode();
+        };
+
+        // Format Date to ISO Local String for Input
+        function setDefaultDateTime() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            document.getElementById('log_datetime').value = now.toISOString().slice(0, 16);
+        }
+
+        // Generate QR Code targeting current window location
+        function generateQRCode() {
+            const currentUrl = window.location.href;
+            document.getElementById('current-url-display').innerText = currentUrl;
+
+            const container = document.getElementById('qrcode-container');
+            container.innerHTML = ''; // Clear previous QR if any
+
+            new QRCode(container, {
+                text: currentUrl,
+                width: 180,
+                height: 180,
+                colorDark : "#0f172a",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+        }
+
+        // Scroll smooth to QR Code section
+        function scrollToQR() {
+            document.getElementById('qr-section').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Toggle UI dynamically based on "Book Out" or "Book In" radio selection
+        function toggleActionFields(action) {
+            const submitBtn = document.getElementById('submit-btn');
+            const submitText = document.getElementById('submit-text');
+
+            if (action === 'BOOK_OUT') {
+                submitBtn.className = "w-full bg-rose-600 hover:bg-rose-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center space-x-2";
+                submitText.innerText = "Confirm Book Out";
+            } else {
+                submitBtn.className = "w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition-all flex items-center justify-center space-x-2";
+                submitText.innerText = "Confirm Book In";
+            }
+        }
+
+        // Handle Form Submission
+        function handleFormSubmit(event) {
+            event.preventDefault();
+
+            const actionType = document.querySelector('input[name="action_type"]:checked').value;
+            const personName = document.getElementById('person_name').value.trim();
+            const roomNumber = document.getElementById('room_number').value.trim();
+            const datetime = document.getElementById('log_datetime').value;
+            const checkEmptied = document.getElementById('check_emptied').checked;
+            const checkCable = document.getElementById('check_cable').checked;
+            const userNotes = document.getElementById('notes').value.trim();
+
+            let notesArray = [];
+            if (checkEmptied) notesArray.push('Bag Emptied');
+            if (checkCable) notesArray.push('Cable OK');
+            if (userNotes) notesArray.push(userNotes);
+
+            const newLog = {
+                id: Date.now(),
+                action: actionType,
+                name: personName,
+                room: roomNumber,
+                timestamp: datetime ? new Date(datetime).toISOString() : new Date().toISOString(),
+                notes: notesArray.join(' • ') || 'No notes'
+            };
+
+            logs.unshift(newLog); // Add to top of array
+            saveLogs();
+            updateStatusUI();
+            renderLogsTable();
+
+            // Reset optional inputs while retaining quick user details
+            document.getElementById('notes').value = '';
+            document.getElementById('check_emptied').checked = false;
+            setDefaultDateTime();
+
+            showToast(actionType === 'BOOK_OUT' ? `Hoover booked out by ${personName}` : `Hoover returned by ${personName}`);
+        }
+
+        // Load logs from localStorage
+        function loadLogs() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                logs = stored ? JSON.parse(stored) : [];
+            } catch (e) {
+                console.error("Could not load logs from localStorage", e);
+                logs = [];
+            }
+        }
+
+        // Save logs to localStorage
+        function saveLogs() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(logs));
+            } catch (e) {
+                console.error("Could not save logs to localStorage", e);
+            }
+        }
+
+        // Get latest status (AVAILABLE or BOOKED OUT)
+        function getCurrentStatus() {
+            if (logs.length === 0) return { isAvailable: true };
+            const latestLog = logs[0];
+            if (latestLog.action === 'BOOK_OUT') {
+                return {
+                    isAvailable: false,
+                    holder: latestLog.name,
+                    room: latestLog.room,
+                    time: latestLog.timestamp
+                };
+            }
+            return { isAvailable: true, lastReturn: latestLog };
+        }
+
+        // Update the visual status banner
+        function updateStatusUI() {
+            const status = getCurrentStatus();
+            const card = document.getElementById('status-card');
+            const iconBg = document.getElementById('status-icon-bg');
+            const icon = document.getElementById('status-icon');
+            const badge = document.getElementById('status-badge');
+            const title = document.getElementById('status-title');
+            const subtext = document.getElementById('status-subtext');
+            const quickBtn = document.getElementById('quick-action-btn');
+
+            if (status.isAvailable) {
+                card.className = "rounded-2xl p-5 border border-emerald-200 bg-emerald-50/50 shadow-sm transition-all duration-300";
+                iconBg.className = "p-3 rounded-full bg-emerald-100 text-emerald-600 flex-shrink-0";
+                icon.setAttribute('data-lucide', 'check-circle-2');
+                badge.className = "px-2.5 py-0.5 text-xs font-bold rounded-full bg-emerald-100 text-emerald-800";
+                badge.innerText = "AVAILABLE";
+                title.innerText = "Hoover is Available";
+                subtext.innerText = status.lastReturn ? `Last returned by ${status.lastReturn.name} (${status.lastReturn.room})` : "Ready to be booked out";
+
+                quickBtn.className = "no-print hidden sm:flex items-center justify-center font-medium text-sm px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-all";
+                quickBtn.innerHTML = `<i data-lucide="log-out" class="w-4 h-4 mr-2"></i> Book Out Now`;
+            } else {
+                card.className = "rounded-2xl p-5 border border-rose-200 bg-rose-50/50 shadow-sm transition-all duration-300";
+                iconBg.className = "p-3 rounded-full bg-rose-100 text-rose-600 flex-shrink-0";
+                icon.setAttribute('data-lucide', 'user-check');
+                badge.className = "px-2.5 py-0.5 text-xs font-bold rounded-full bg-rose-100 text-rose-800";
+                badge.innerText = "BOOKED OUT";
+                title.innerText = `Currently with ${status.holder}`;
+                subtext.innerText = `Location: ${status.room} • Borrowed ${formatRelativeTime(status.time)}`;
+
+                quickBtn.className = "no-print hidden sm:flex items-center justify-center font-medium text-sm px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all";
+                quickBtn.innerHTML = `<i data-lucide="log-in" class="w-4 h-4 mr-2"></i> Return Hoover`;
+            }
+
+            lucide.createIcons();
+        }
+
+        // Quick fill action button on status banner
+        function quickFillForm() {
+            const status = getCurrentStatus();
+            const form = document.getElementById('booking-form');
+            form.scrollIntoView({ behavior: 'smooth' });
+
+            if (status.isAvailable) {
+                document.querySelector('input[name="action_type"][value="BOOK_OUT"]').checked = true;
+                toggleActionFields('BOOK_OUT');
+            } else {
+                document.querySelector('input[name="action_type"][value="BOOK_IN"]').checked = true;
+                toggleActionFields('BOOK_IN');
+                document.getElementById('person_name').value = status.holder;
+                document.getElementById('room_number').value = status.room;
+            }
+        }
+
+        // Render Activity Table
+        function renderLogsTable() {
+            const tbody = document.getElementById('logs-tbody');
+            const emptyMsg = document.getElementById('empty-log-msg');
+
+            tbody.innerHTML = '';
+
+            if (logs.length === 0) {
+                emptyMsg.classList.remove('hidden');
+                return;
+            } else {
+                emptyMsg.classList.add('hidden');
+            }
+
+            logs.forEach(log => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+
+                const isBookOut = log.action === 'BOOK_OUT';
+                const actionBadge = isBookOut 
+                    ? `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200"><i data-lucide="log-out" class="w-3 h-3 mr-1"></i> Book Out</span>`
+                    : `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"><i data-lucide="log-in" class="w-3 h-3 mr-1"></i> Book In</span>`;
+
+                const formattedDate = new Date(log.timestamp).toLocaleString(undefined, {
+                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                });
+
+                tr.innerHTML = `
+                    <td class="py-3 px-4">${actionBadge}</td>
+                    <td class="py-3 px-4 font-semibold text-slate-900">${escapeHtml(log.name)}</td>
+                    <td class="py-3 px-4 text-slate-600">${escapeHtml(log.room)}</td>
+                    <td class="py-3 px-4 text-slate-500 text-xs">${formattedDate}</td>
+                    <td class="py-3 px-4 text-slate-600 text-xs max-w-xs truncate" title="${escapeHtml(log.notes)}">${escapeHtml(log.notes)}</td>
+                `;
+
+                tbody.appendChild(tr);
+            });
+
+            lucide.createIcons();
+        }
+
+        // Clear log history
+        function clearHistory() {
+            if (confirm("Are you sure you want to clear all log history?")) {
+                logs = [];
+                saveLogs();
+                updateStatusUI();
+                renderLogsTable();
+                showToast("Log history cleared");
+            }
+        }
+
+        // Helper to format relative time strings
+        function formatRelativeTime(isoString) {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diffInMinutes = Math.floor((now - date) / (1000 * 60));
+
+            if (diffInMinutes < 1) return 'just now';
+            if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+            const diffInHours = Math.floor(diffInMinutes / 60);
+            if (diffInHours < 24) return `${diffInHours}h ago`;
+            const diffInDays = Math.floor(diffInHours / 24);
+            return `${diffInDays}d ago`;
+        }
+
+        // Helper to escape HTML characters
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m];
+            });
+        }
+
+        // Toast Notification Helper
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+            toastMsg.innerText = message;
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
